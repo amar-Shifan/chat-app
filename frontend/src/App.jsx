@@ -7,7 +7,6 @@ const App = () => {
   const [message, setMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Mock data for friends
   const friends = [
     {
       id: 1,
