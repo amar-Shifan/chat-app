@@ -9,7 +9,7 @@ import ChatPage from './pages/ChatPage';
 export default function App() {
   return (
     <Router>
-      <div className="max-w-md mx-auto bg-white shadow-2xl min-h-screen">
+      <div>
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
