@@ -3,11 +3,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import API from '../api/axios';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [ loading , setLoading ] = useState(false)
+  const [ error , setError ] = useState(false)
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -195,7 +198,9 @@ export default function LoginPage() {
                 whileTap={{ scale: 0.98 }}
                 variants={itemVariants}
               >
-                <span className="relative z-10">Sign In</span>
+                <span className="relative z-10">{ loading ? "Signing In..." : "Sign in"}</span>
+                {error && 
+                }
                 <motion.div 
                   className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent"
                   initial={{ x: "-100%" }}
