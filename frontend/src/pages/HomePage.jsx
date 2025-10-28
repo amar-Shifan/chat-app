@@ -18,6 +18,7 @@ export default function HomePage() {
       <div className="bg-orange-200 px-6 py-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-orange-900">Chats</h1>
+          <h1 className="text-2xl font-bold text-orange-900">Chats</h1>
           <MoreVertical className="w-6 h-6 text-orange-700 cursor-pointer" />
         </div>
 
