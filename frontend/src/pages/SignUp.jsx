@@ -3,22 +3,44 @@ import React, { useState } from 'react';
 import { Users, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import API from '../api/axios';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export default function SignupPage() {
   const navigate = useNavigate();
-  const [signupData, setSignupData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const { login } = useAuth();
+  const [signupData, setSignupData] = useState({ username: '', email: '', password: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
+    setError('');
+
     if (signupData.password !== signupData.confirmPassword) {
-      alert('Passwords do not match!');
+      setError('Passwords do not match');
       return;
     }
-    console.log('Signup:', signupData);
-    // TODO: replace with real signup
-    navigate('/home');
+
+    try {
+      setLoading(true);
+      const payload = {
+        username: signupData.username,
+        email: signupData.email,
+        password: signupData.password,
+      };
+      const { data } = await API.post('/auth/register', payload);
+      const userPayload = { _id: data._id, username: data.username, email: data.email };
+      login(userPayload, data.token);
+      navigate('/home', { replace: true });
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to create account. Please try again.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const containerVariants = {
@@ -143,7 +165,7 @@ export default function SignupPage() {
               className="space-y-5"
               variants={itemVariants}
             >
-              {/* Name Input */}
+              {/* Username Input */}
               <motion.div 
                 className="relative group"
                 whileHover={{ scale: 1.02 }}
@@ -154,9 +176,9 @@ export default function SignupPage() {
                   <User className="absolute left-4 w-5 h-5 text-orange-500 z-10" />
                   <input
                     type="text"
-                    placeholder="Full name"
-                    value={signupData.name}
-                    onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
+                    placeholder="Username"
+                    value={signupData.username}
+                    onChange={(e) => setSignupData({ ...signupData, username: e.target.value })}
                     className="w-full pl-12 pr-4 py-4 bg-white/70 backdrop-blur-md rounded-2xl border border-white/20 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-300/50 text-orange-900 placeholder-orange-700/80 transition-all duration-300 hover:bg-white/15 focus:bg-white/20"
                     required
                   />
@@ -251,7 +273,12 @@ export default function SignupPage() {
                 whileTap={{ scale: 0.98 }}
                 variants={itemVariants}
               >
-                <span className="relative z-10">Create Account</span>
+                <span className="relative z-10">{loading ? 'Creating account...' : 'Create Account'}</span>
+                {error && (
+                  <p className="mt-2 text-red-500 text-sm relative z-10">
+                    {error}
+                  </p>
+                )}
                 <motion.div 
                   className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent"
                   initial={{ x: "-100%" }}

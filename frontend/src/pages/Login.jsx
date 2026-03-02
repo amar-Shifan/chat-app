@@ -1,22 +1,38 @@
 // src/pages/LoginPage.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { MessageCircle, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import API from '../api/axios';
+import { useAuth } from '../context/AuthContext.jsx';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
-  const [ loading , setLoading ] = useState(false)
-  const [ error , setError ] = useState(false)
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    console.log('Login:', loginData);
-    // TODO: replace with real auth
-    navigate('/home');
+    setError('');
+
+    try {
+      setLoading(true);
+      const { data } = await API.post('/auth/login', loginData);
+      const userPayload = { _id: data._id, username: data.username, email: data.email };
+      login(userPayload, data.token);
+
+      const redirectTo = location.state?.from?.pathname || '/home';
+      navigate(redirectTo, { replace: true });
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to sign in. Please try again.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const containerVariants = {
@@ -198,9 +214,12 @@ export default function LoginPage() {
                 whileTap={{ scale: 0.98 }}
                 variants={itemVariants}
               >
-                <span className="relative z-10">{ loading ? "Signing In..." : "Sign in"}</span>
-                {error && 
-                }
+                <span className="relative z-10">{loading ? 'Signing In...' : 'Sign in'}</span>
+                {error && (
+                  <p className="mt-2 text-red-500 text-sm relative z-10">
+                    {error}
+                  </p>
+                )}
                 <motion.div 
                   className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent"
                   initial={{ x: "-100%" }}

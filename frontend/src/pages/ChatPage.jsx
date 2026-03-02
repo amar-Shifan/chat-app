@@ -1,42 +1,79 @@
 // src/pages/ChatPage.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Send, Phone, Video, MoreVertical } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { friends as initialFriends } from '../data/friends';
+import { useAuth } from '../context/AuthContext.jsx';
+import API from '../api/axios';
+import { getSocket } from '../api/socket.js';
 
 export default function ChatPage() {
-  const { friendId } = useParams();
+  const { userId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [selectedFriend, setSelectedFriend] = useState(location.state?.friend ? { ...location.state.friend } : null);
+  const { user } = useAuth();
+  const [selectedUser, setSelectedUser] = useState(location.state?.friend || null);
+  const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(true);
   const scrollRef = useRef(null);
 
   useEffect(() => {
-    if (!selectedFriend) {
-      const f = initialFriends.find((x) => String(x.id) === String(friendId));
-      if (f) setSelectedFriend({ ...f });
-    }
-  }, [friendId, selectedFriend]);
+    const fetchUserAndMessages = async () => {
+      try {
+        if (!selectedUser) {
+          const { data } = await API.get('/users');
+          const found = data.find((u) => String(u._id) === String(userId));
+          if (found) {
+            setSelectedUser(found);
+          }
+        }
+        const { data: conversation } = await API.get(`/messages/${userId}`);
+        setMessages(conversation);
+      } catch (error) {
+        console.error('Failed to load conversation', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserAndMessages();
+  }, [userId]);
 
   useEffect(() => {
-    // auto-scroll to bottom when messages change
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [selectedFriend?.messages?.length]);
+  }, [messages.length]);
 
-  const sendMessage = () => {
-    if (!message.trim() || !selectedFriend) return;
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
 
-    const newMessage = {
-      id: Date.now(),
-      text: message.trim(),
-      sender: 'me',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const handleNewMessage = (msg) => {
+      if (
+        (String(msg.senderId) === String(userId) && String(msg.receiverId) === String(user._id)) ||
+        (String(msg.receiverId) === String(userId) && String(msg.senderId) === String(user._id))
+      ) {
+        setMessages((prev) => [...prev, msg]);
+      }
     };
 
-    setSelectedFriend((prev) => ({ ...prev, messages: [...(prev.messages || []), newMessage] }));
+    socket.on('newMessage', handleNewMessage);
+
+    return () => {
+      socket.off('newMessage', handleNewMessage);
+    };
+  }, [userId, user?._id]);
+
+  const sendMessage = () => {
+    if (!message.trim()) return;
+    const socket = getSocket();
+    if (!socket) return;
+
+    socket.emit('privateMessage', {
+      receiverId: userId,
+      message: message.trim(),
+    });
     setMessage('');
   };
 
@@ -47,11 +84,11 @@ export default function ChatPage() {
     }
   };
 
-  if (!selectedFriend) {
+  if (!selectedUser) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
-          <p className="mb-4">Friend not found.</p>
+          <p className="mb-4">User not found.</p>
           <button onClick={() => navigate('/home')} className="px-4 py-2 bg-orange-500 text-white rounded">
             Back to Home
           </button>
@@ -71,12 +108,13 @@ export default function ChatPage() {
 
             <div className="flex items-center">
               <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-orange-300 flex items-center justify-center text-lg">{selectedFriend.avatar}</div>
-                {selectedFriend.online && <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />}
+                <div className="w-10 h-10 rounded-full bg-orange-300 flex items-center justify-center text-lg">
+                  {selectedUser.username.charAt(0).toUpperCase()}
+                </div>
               </div>
               <div className="ml-3">
-                <h2 className="font-semibold text-orange-900">{selectedFriend.name}</h2>
-                <p className="text-sm text-orange-700">{selectedFriend.online ? 'Online' : 'Last seen recently'}</p>
+                <h2 className="font-semibold text-orange-900">{selectedUser.username}</h2>
+                <p className="text-sm text-orange-700">{selectedUser.email}</p>
               </div>
             </div>
           </div>
@@ -90,14 +128,25 @@ export default function ChatPage() {
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-        {selectedFriend.messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${msg.sender === 'me' ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-white text-orange-900 rounded-bl-sm shadow-sm'}`}>
-              <p className="text-sm">{msg.text}</p>
-              <p className={`text-xs mt-1 ${msg.sender === 'me' ? 'text-orange-100' : 'text-orange-500'}`}>{msg.time}</p>
-            </div>
-          </div>
-        ))}
+        {loading && <div className="text-center text-orange-700">Loading messages...</div>}
+        {!loading &&
+          messages.map((msg) => {
+            const isMe = String(msg.senderId) === String(user._id);
+            return (
+              <div key={msg._id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                    isMe ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-white text-orange-900 rounded-bl-sm shadow-sm'
+                  }`}
+                >
+                  <p className="text-sm">{msg.message}</p>
+                  <p className={`text-xs mt-1 ${isMe ? 'text-orange-100' : 'text-orange-500'}`}>
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
       </div>
 
       <div className="bg-white px-4 py-3 border-t border-orange-200">
