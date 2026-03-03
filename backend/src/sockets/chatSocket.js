@@ -64,6 +64,60 @@ export const initChatSocket = (io) => {
       }
     });
 
+    // Signaling: initiate a call
+    socket.on('call-user', ({ callerId, receiverId }) => {
+      const receiverSocketId = onlineUsersByUserId.get(receiverId?.toString());
+      if (!receiverSocketId) return;
+
+      // Forward to receiver (same event name, different direction)
+      io.to(receiverSocketId).emit('call-user', { callerId, receiverId });
+    });
+
+    // Signaling: call accepted / rejected
+    socket.on('call-accepted', ({ callerId, receiverId }) => {
+      const callerSocketId = onlineUsersByUserId.get(callerId?.toString());
+      if (!callerSocketId) return;
+
+      io.to(callerSocketId).emit('call-accepted', { callerId, receiverId });
+    });
+
+    socket.on('call-rejected', ({ callerId, receiverId }) => {
+      const callerSocketId = onlineUsersByUserId.get(callerId?.toString());
+      if (!callerSocketId) return;
+
+      io.to(callerSocketId).emit('call-rejected', { callerId, receiverId });
+    });
+
+    // Signaling: WebRTC SDP and ICE
+    socket.on('offer', ({ from, to, sdp }) => {
+      const targetSocketId = onlineUsersByUserId.get(to?.toString());
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit('offer', { from, to, sdp });
+    });
+
+    socket.on('answer', ({ from, to, sdp }) => {
+      const targetSocketId = onlineUsersByUserId.get(to?.toString());
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit('answer', { from, to, sdp });
+    });
+
+    socket.on('ice-candidate', ({ from, to, candidate }) => {
+      const targetSocketId = onlineUsersByUserId.get(to?.toString());
+      if (!targetSocketId) return;
+
+      io.to(targetSocketId).emit('ice-candidate', { from, to, candidate });
+    });
+
+    socket.on('end-call', ({ from, to }) => {
+      const targetSocketId = onlineUsersByUserId.get(to?.toString());
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('end-call', { from, to });
+      }
+      // No server-side state; clients handle cleanup.
+    });
+
     socket.on('disconnect', () => {
       const disconnectedUserId = userIdBySocketId.get(socket.id);
       if (disconnectedUserId) {
